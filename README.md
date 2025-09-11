@@ -48,7 +48,7 @@ project_SK/
 ├── sk_tools.py             # Defines the suite of tools for the LangChain agent
 ├── yt_control.py           # Manages Selenium-based YouTube browser automation
 ├── chat_memory.json        # Stores conversation history to maintain context
-└── README.md               # You are here!
+└── README.md               
 ```
 
 ---
