@@ -10,7 +10,7 @@ Wraps yt_control.YouTubeController and exposes it as a LangChain tool agent.
 
 from __future__ import annotations
 import os, sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import pathfinder
 
 from langchain_core.tools import Tool
 from agents.base_agent import BaseSubAgent

@@ -17,6 +17,8 @@ from langchain_groq import ChatGroq
 from langchain_huggingface import ChatHuggingFace
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import AzureChatOpenAI
+from langchain_ollama import ChatOllama
+
 
 
 class LLMProvider(Enum):
@@ -24,8 +26,9 @@ class LLMProvider(Enum):
     OPENAI = "openai"
     AZURE_OPENAI = "azure_openai"
     ANTHROPIC = "anthropic"
-    GOOGLE_GEMINI = "google_gemini"
+    GOOGLE_GEMINI = "google"
     GROQ = "groq"
+    OLLAMA = "ollama"
     HUGGINGFACE = "huggingface"
     google_gemini = "google_gemini"
     OPENROUTER = "openrouter"
@@ -89,6 +92,7 @@ class UniversalLLM:
             LLMProvider.ANTHROPIC: "claude-3-5-sonnet-20241022",
             LLMProvider.GOOGLE_GEMINI: "",
             LLMProvider.GROQ: "",
+            LLMProvider.OLLAMA: "tinyllama",
             LLMProvider.HUGGINGFACE: "google/flan-t5-xxl",
             LLMProvider.google_gemini: "llama2",
             LLMProvider.OPENROUTER: "openai/gpt-3.5-turbo",
@@ -208,7 +212,14 @@ class UniversalLLM:
                 model=self.model,
                 **common_params
             )
+        elif self.provider == LLMProvider.OLLAMA:
+            base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
             
+            self._model_instance = ChatOllama(
+                base_url=base_url,
+                model=self.model,
+                **common_params
+            )
         elif self.provider == LLMProvider.OPENROUTER:
             api_key = os.getenv("OPENROUTER_API_KEY")
             if not api_key:

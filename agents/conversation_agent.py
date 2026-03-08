@@ -9,7 +9,7 @@ Falls back here when no specialist agent matches.
 
 from __future__ import annotations
 import os, sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import pathfinder
 
 from langchain_core.messages import SystemMessage, HumanMessage
 from agents.base_agent import BaseSubAgent
@@ -40,6 +40,7 @@ class ConversationAgent(BaseSubAgent):
             ]
             result = self.llm.invoke(messages)
             response = result.content
+            response = response[0]['text']
         except Exception as e:
             response = f"I'm having trouble responding right now: {e}"
 

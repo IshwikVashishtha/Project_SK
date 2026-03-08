@@ -14,7 +14,7 @@ ResearchAgent routes between them and synthesises a final answer.
 
 from __future__ import annotations
 import os, sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import pathfinder
 
 from langchain_core.tools import Tool
 from langchain_community.utilities import WikipediaAPIWrapper
@@ -134,6 +134,7 @@ class ResearchAgent(BaseSubAgent):
             ]
             result = self.llm.invoke(messages)
             response = result.content
+            response = response[0]['text']
         except Exception as e:
             response = combined  # fallback: return raw
 

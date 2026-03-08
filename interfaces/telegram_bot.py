@@ -11,7 +11,7 @@ Run: python interfaces/telegram_bot.py
 
 from __future__ import annotations
 import os, sys, logging
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import pathfinder
 
 from config.settings import TELEGRAM_BOT_TOKEN
 
@@ -92,7 +92,6 @@ def run_telegram_bot():
             response = response[0]["text"]
         except Exception as e:
             response = f"Sorry, something went wrong: {e}"
-
         # Telegram max message length = 4096
         if len(response) > 4000:
             for i in range(0, len(response), 4000):
@@ -112,6 +111,29 @@ def run_telegram_bot():
     print("🤖 Telegram bot is running... Press Ctrl+C to stop.")
     app.run_polling()
 
-
+BIGBANNER = r"""
+                                ╔════════════════════════════════════════════════════════════════════════════╗
+                                ║                                                                            ║
+                                ║  ███████╗██╗  ██╗    ███╗   ███╗██╗    █████╗ ███╗   ███╗ ██████╗ ██████╗  ║
+                                ║  ██╔════╝██║ ██╔╝    ████╗ ████║██║   ██╔══██╗████╗ ████║██╔═══██╗██╔══██╗ ║
+                                ║  ███████╗█████╔╝     ██╔████╔██║██║   ███████║██╔████╔██║██║   ██║██████╔╝ ║
+                                ║  ╚════██║██╔═██╗     ██║╚██╔╝██║██║   ██╔══██║██║╚██╔╝██║██║   ██║██╔══██╗ ║
+                                ║  ███████║██║  ██╗    ██║ ╚═╝ ██║██║   ██║  ██║██║ ╚═╝ ██║╚██████╔╝██║  ██║ ║
+                                ║  ╚══════╝╚═╝  ╚═╝    ╚═╝     ╚═╝╚═╝   ╚═╝  ╚═╝╚═╝     ╚═╝ ╚═════╝ ╚═╝  ╚═╝ ║
+                                ║                                                                            ║
+                                ║               SK MI AMOR • Multi-Agent AI Assistant                        ║
+                                ║                         SK Engine v2.0                                     ║
+                                ║                                                                            ║
+                                ╠════════════════════════════════════════════════════════════════════════════╣
+                                ║  Type your message and press Enter                                         ║
+                                ║                                                                            ║
+                                ║  Commands:                                                                 ║
+                                ║    /status    Show agent status                                            ║
+                                ║    /clear     Clear memory                                                 ║
+                                ║    /help      Show help                                                    ║
+                                ║    /exit      Quit                                                         ║
+                                ╚════════════════════════════════════════════════════════════════════════════╝
+"""
 if __name__ == "__main__":
+    print(BIGBANNER)
     run_telegram_bot()

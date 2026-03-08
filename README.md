@@ -9,10 +9,10 @@ A **hierarchical multi-agent AI system** with a single orchestrator, specialist 
 ```
 User  ──►  Orchestrator
               │
-    ┌─────────┼──────────┬──────────┬──────────┐
-    ▼         ▼          ▼          ▼          ▼
-Research   Media       Data      System   Conversation
-Agent      Agent       Agent     Agent      Agent
+    ┌─────────┼──────────┬──────────┬──────────┐──────────┐
+    ▼         ▼          ▼          ▼          ▼          ▼
+Research   Media       Data      System   Conversation    Mcp 
+Agent      Agent       Agent     Agent      Agent        Agent
 │                      │
 ├─ WebSearchAgent    ├─ MathAgent
 └─ WikiAgent         └─ CSVAgent
@@ -38,6 +38,10 @@ deep_agent/
 ├── middleware/
 │   └── summarizer.py            # SummarizationMiddleware (per-agent memory)
 │
+├──mcp/
+│   ├── mcp_client.py
+│   ├── mcp_registry.py
+│      
 ├── agents/
 │   ├── base_agent.py            # BaseSubAgent (all agents inherit this)
 │   ├── orchestrator.py          # Master orchestrator  ← main router
@@ -45,6 +49,7 @@ deep_agent/
 │   ├── media_agent.py           # MediaAgent (YouTube)
 │   ├── data_agent.py            # DataAgent → MathAgent + CSVAgent
 │   ├── system_agent.py          # SystemAgent (weather, time, OS)
+│   ├── mcp_agent.py             # McpAgent (file system, git, fetch, memory)
 │   └── conversation_agent.py    # ConversationAgent (chat fallback)
 │
 ├── interfaces/
@@ -154,3 +159,109 @@ When the buffer exceeds 10 turns, it's compressed into the summary and the buffe
 3. Run `python main.py whatsapp`
 4. Expose port 5000 publicly (e.g. `ngrok http 5000`)
 5. Register webhook URL in Meta dashboard: `https://your-ngrok-url/webhook`
+
+---
+
+## MCP Integration
+
+DeepAgent now includes a dedicated **MCPAgent** that connects to any MCP (Model Context Protocol) server and exposes their tools to the LLM automatically.
+
+### Updated Architecture
+
+```
+User → Orchestrator
+           ├── ResearchAgent   (web + Wikipedia)
+           ├── MediaAgent      (YouTube)
+           ├── DataAgent       (math + CSV)
+           ├── SystemAgent     (weather, time)
+           ├── ConversationAgent (chat)
+           └── MCPAgent  ◄── NEW
+                   ├── MCPFilesystemAgent   (read/write files)
+                   ├── MCPGitAgent          (git + GitHub)
+                   ├── MCPCommunicationAgent(Gmail + Slack + Notion)
+                   ├── MCPDatabaseAgent     (Postgres + SQLite)
+                   ├── MCPBrowserAgent      (Puppeteer + Fetch)
+                   └── MCPMemoryAgent       (persistent KV memory)
+```
+
+### MCP Servers Included
+
+| Server | Capability | Needs API key? | What it does |
+|---|---|---|---|
+| `filesystem` | filesystem | ❌ | Read/write/search local files |
+| `git` | git | ❌ | Git status, diff, commit, branch |
+| `github` | git | ✅ `GITHUB_TOKEN` | Issues, PRs, search code |
+| `gdrive` | gdrive | ✅ OAuth | Google Drive files/docs |
+| `gmail` | gmail | ✅ OAuth | Send/read emails |
+| `slack` | slack | ✅ `SLACK_BOT_TOKEN` | Post/read Slack messages |
+| `notion` | notion | ✅ `NOTION_API_KEY` | Read/write Notion pages |
+| `postgres` | database | ✅ `POSTGRES_URL` | SQL queries |
+| `sqlite` | database | ❌ | Local SQLite queries |
+| `brave_search` | search | ✅ `BRAVE_API_KEY` | Privacy-focused web search |
+| `fetch` | browser | ❌ | Fetch any URL as markdown |
+| `puppeteer` | browser | ❌ | Browser automation |
+| `memory` | memory | ❌ | Persistent key-value store |
+| `docker` | devops | ❌ | Docker container management |
+
+### Enabling MCP Servers
+
+**Step 1** — Install prerequisites:
+```bash
+pip install mcp langchain-mcp-adapters
+npm install -g npx        # for npx-based servers
+pip install uvx           # or: pip install uv
+```
+
+**Step 2** — Enable in `.env`:
+```env
+# Servers that need no API key — just toggle on:
+MCP_FILESYSTEM_ENABLED=true
+MCP_GIT_ENABLED=true
+MCP_FETCH_ENABLED=true
+MCP_MEMORY_ENABLED=true
+
+# Servers that need credentials:
+GITHUB_TOKEN=ghp_...
+SLACK_BOT_TOKEN=xoxb-...
+NOTION_API_KEY=secret_...
+```
+
+**Step 3** — Run as normal:
+```bash
+python main.py cli
+```
+
+DeepAgent will auto-detect which servers are configured and load their tools at startup.
+
+### Adding a Custom MCP Server
+
+Add one entry to `mcp/mcp_registry.py`:
+
+```python
+"my_server": {
+    "transport":    "stdio",
+    "command":      "npx",
+    "args":         ["-y", "my-mcp-server-package"],
+    "env":          {"MY_API_KEY": os.getenv("MY_API_KEY", "")},
+    "description":  "What this server does.",
+    "capability":   "my_capability",       # used for routing
+    "required_env": ["MY_API_KEY"],        # must be set for auto-enable
+    "enabled":      bool(os.getenv("MY_API_KEY")),
+},
+```
+
+Then add keywords for it in `agents/mcp_agent.py` under `MCP_ROUTING`.
+
+### Example MCP Commands
+
+| You say | What happens |
+|---|---|
+| "Read the file at ~/notes.txt" | MCPFilesystemAgent reads the file |
+| "What's the git status of my repo?" | MCPGitAgent runs `git status` |
+| "Create a GitHub issue titled Bug in login" | MCPGitAgent creates issue via GitHub API |
+| "Send an email to boss@company.com about the report" | MCPCommunicationAgent sends via Gmail |
+| "Post 'Deploy done' in the #general Slack channel" | MCPCommunicationAgent posts to Slack |
+| "Query: SELECT * FROM users LIMIT 5" | MCPDatabaseAgent runs SQL |
+| "Open https://example.com and take a screenshot" | MCPBrowserAgent uses Puppeteer |
+| "Remember that my preference is dark mode" | MCPMemoryAgent stores the preference |
+| "What did I tell you to remember?" | MCPMemoryAgent retrieves stored info |

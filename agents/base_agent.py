@@ -8,7 +8,7 @@ Handles: LLM init, summarization middleware, tool binding, and invoke().
 from __future__ import annotations
 import sys
 import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import pathfinder
 
 from typing import List, Optional, Any
 from langchain.agents import create_agent
@@ -77,11 +77,8 @@ class BaseSubAgent:
             if self.tools:
                 agent_executor = create_agent(
                     tools=self.tools,
-                    llm=self.llm,
-                    # agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
-                    verbose=False,
-                    handle_parsing_errors=True,
-                    max_iterations=5,
+                    model=self.llm,
+                    # middleware=[self.memory],
                 )
                 full_prompt = self._build_prompt(user_input)
                 result = agent_executor.invoke({"input": full_prompt})

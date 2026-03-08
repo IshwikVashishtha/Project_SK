@@ -13,9 +13,7 @@ Usage:
 import sys
 import os
 
-# Ensure project root is on path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
 
 def main():
     mode = sys.argv[1].lower() if len(sys.argv) > 1 else "cli"

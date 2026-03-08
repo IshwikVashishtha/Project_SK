@@ -22,7 +22,7 @@ Run: python interfaces/whatsapp_bot.py
 
 from __future__ import annotations
 import os, sys, json, logging
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import pathfinder
 
 from config.settings import WHATSAPP_TOKEN, WHATSAPP_PHONE_ID, WHATSAPP_VERIFY_TOKEN
 

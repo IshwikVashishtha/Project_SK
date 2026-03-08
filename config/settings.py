@@ -18,16 +18,16 @@ AGENT_LLM_CONFIG = {
 
     # Main orchestrator – needs strongest reasoning
     "orchestrator": {
-        "provider": os.getenv("ORCHESTRATOR_PROVIDER", "groq"),
-        "model":    os.getenv("ORCHESTRATOR_MODEL",    ""),
+        "provider": os.getenv("ORCHESTRATOR_PROVIDER", "google"),
+        "model":    os.getenv("ORCHESTRATOR_MODEL",    "gemini-3-flash-preview"),
         "temperature": 0.2,
         "max_tokens":  1500,
     },
 
     # Research sub-agent – web search + Wikipedia
     "research": {
-        "provider": os.getenv("RESEARCH_PROVIDER", "groq"),
-        "model":    os.getenv("RESEARCH_MODEL",    ""),
+        "provider": os.getenv("RESEARCH_PROVIDER", "google"),
+        "model":    os.getenv("RESEARCH_MODEL",    "gemini-3-flash-preview"),
         "temperature": 0.1,
         "max_tokens":  1500,
     },
@@ -86,3 +86,14 @@ WHATSAPP_VERIFY_TOKEN= os.getenv("WHATSAPP_VERIFY_TOKEN", "deepagent")
 SERPAPI_KEY          = os.getenv("SERPAPI_API_KEY", "")
 WEATHER_API_KEY      = os.getenv("WEATHER_API_KEY", os.getenv("WETHER_API_KEY", ""))
 # groq_BASE_URL      = os.getenv("groq_BASE_URL", "http://localhost:11434")
+
+# ─────────────────────────────────────────────
+# MCP server toggles (also controllable via .env)
+# ─────────────────────────────────────────────
+MCP_FILESYSTEM_ENABLED = os.getenv("MCP_FILESYSTEM_ENABLED", "true").lower() == "true"
+MCP_GIT_ENABLED        = os.getenv("MCP_GIT_ENABLED",        "true").lower() == "true"
+MCP_FETCH_ENABLED      = os.getenv("MCP_FETCH_ENABLED",      "true").lower() == "true"
+MCP_MEMORY_ENABLED     = os.getenv("MCP_MEMORY_ENABLED",     "true").lower() == "true"
+MCP_PUPPETEER_ENABLED  = os.getenv("MCP_PUPPETEER_ENABLED",  "false").lower() == "true"
+MCP_DOCKER_ENABLED     = os.getenv("MCP_DOCKER_ENABLED",     "false").lower() == "true"
+MCP_SQLITE_ENABLED     = os.getenv("MCP_SQLITE_ENABLED",     "false").lower() == "true"
