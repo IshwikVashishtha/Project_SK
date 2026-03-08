@@ -1,8 +1,4 @@
 """
-agents/research_agent.py
-
-Research Sub-Agent
-─────────────────
 Handles: web search, Wikipedia lookups, fact-finding, news.
 
 Sub-agents under Research:

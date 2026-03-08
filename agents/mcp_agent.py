@@ -1,6 +1,4 @@
 """
-agents/mcp_agent.py
-════════════════════
 MCPAgent — thin ReAct agent powered by ToolProxyRegistry.
 
 The orchestrator sends a full user query here.

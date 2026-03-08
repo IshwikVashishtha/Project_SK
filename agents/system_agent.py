@@ -1,6 +1,4 @@
 """
-agents/system_agent.py
-
 System Sub-Agent
 ────────────────
 Handles: weather, date/time, general system info, OS-level tasks.

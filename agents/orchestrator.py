@@ -1,6 +1,4 @@
 """
-agents/orchestrator.py
-════════════════════════
 Master Orchestrator — binary routing decision:
   1. Clearly a specialist task? → Research / Media / Data / System / Conversation
   2. Needs external integration? → MCPAgent (handles everything itself via ReAct)

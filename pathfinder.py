@@ -1,6 +1,4 @@
 """
-pathfinder.py
-─────────────
 Adds the project root to sys.path exactly once.
 Import this at the top of main.py and every interface entry point.
 All internal modules then use clean absolute imports like:

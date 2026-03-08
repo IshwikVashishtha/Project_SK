@@ -1,5 +1,4 @@
 """
-config/settings.py
 Central configuration for DeepAgent system.
 Assign different LLM providers/models to each agent role.
 """

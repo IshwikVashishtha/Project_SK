@@ -1,6 +1,4 @@
 """
-mcp_servers/registry.py
-════════════════════════
 Central definition of every MCP server DeepAgent can connect to.
 Each entry is a plain dict — no imports from the mcp pip package here.
 

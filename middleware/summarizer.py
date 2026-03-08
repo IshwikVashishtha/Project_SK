@@ -1,6 +1,4 @@
 """
-middleware/summarizer.py
-
 Summarization middleware used by every sub-agent.
 Keeps a rolling window of recent messages + a running summary
 so the LLM context never grows unbounded.

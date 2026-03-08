@@ -1,6 +1,4 @@
 """
-interfaces/telegram_bot.py
-
 Telegram Bot Interface for DeepAgent.
 Each user gets their OWN Orchestrator instance with isolated memory.
 

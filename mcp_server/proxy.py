@@ -1,6 +1,4 @@
 """
-mcp_servers/proxy.py
-═════════════════════
 ToolProxyRegistry
 ─────────────────
 • Launches all enabled MCP server subprocesses once at startup

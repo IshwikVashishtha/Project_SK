@@ -1,6 +1,4 @@
 """
-agents/base_agent.py
-
 Base class for every sub-agent.
 Handles: LLM init, summarization middleware, tool binding, and invoke().
 """

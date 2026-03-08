@@ -1,6 +1,4 @@
 """
-agents/media_agent.py
-
 Media Sub-Agent
 ───────────────
 Handles: YouTube play, pause/resume, skip ads, volume, close.

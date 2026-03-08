@@ -1,6 +1,4 @@
 """
-interfaces/whatsapp_bot.py
-
 WhatsApp Interface for DeepAgent.
 Uses Meta Cloud API (webhooks) via a lightweight Flask server.
 

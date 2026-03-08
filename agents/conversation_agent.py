@@ -1,6 +1,4 @@
 """
-agents/conversation_agent.py
-
 Conversation Sub-Agent
 ───────────────────────
 Handles: general chat, follow-up questions, greetings, small talk.

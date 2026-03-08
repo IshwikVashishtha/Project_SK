@@ -1,15 +1,3 @@
-"""
-main.py
-═══════
-DeepAgent entry point.
-
-Usage:
-  python main.py cli          # Run in terminal
-  python main.py telegram     # Run Telegram bot
-  python main.py whatsapp     # Run WhatsApp webhook server
-  python main.py              # Defaults to CLI
-"""
-
 import sys
 import os
 
