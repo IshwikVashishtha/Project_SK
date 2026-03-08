@@ -1,169 +1,267 @@
-# Project_SK: A Multi-Modal AI Assistant
+# DeepAgent — SK v2.0
 
-[![Python](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](https://www.python.org/)
-[![LangChain](https://img.shields.io/badge/LangChain-blueviolet)](https://www.langchain.com/)
-[![Ollama](https://img.shields.io/badge/Ollama-orange)](https://ollama.com/)
-[![Streamlit](https://img.shields.io/badge/Streamlit-red)](https://streamlit.io/)
-
-**Project_SK** is a powerful, voice-activated AI assistant built with Python, LangChain, and local Large Language Models (LLMs). It's designed to be a versatile companion that can understand voice commands, reason about tasks, use a variety of tools to interact with the digital world, and hold context-aware conversations.
-
-The entire system runs locally using **Ollama**, ensuring complete privacy, no API costs, and full control over your data.
+A **hierarchical multi-agent AI system** with a single orchestrator, specialist sub-agents (each with their own summarisation middleware), and three interfaces: CLI, Telegram, and WhatsApp.
 
 ---
 
-## 🚀 Key Features
-
--   **🗣️ Voice-Activated Control:** Hands-free interaction using a customizable wake word for commands.
--   **🤖 Multi-Modal Interaction:** Supports both voice (speech-to-text, text-to-speech) and text-based (Streamlit UI) communication.
--   **🧠 Local LLM Powered:** Leverages Ollama to run powerful open-source models like `gemma2` and `phi3` locally, eliminating API costs and privacy concerns.
--   **🛠️ Agentic Tool Use:** The AI can autonomously use a suite of tools to perform actions:
-    -   **Web Search:** Access up-to-date information from the internet via SerpAPI.
-    -   **YouTube Control:** Search and play videos, pause/resume, and even skip ads using Selenium.
-    -   **Information Retrieval:** Get current weather updates and fetch summaries from Wikipedia.
-    -   **Data & Math:** Solve complex mathematical expressions and perform quick analysis on CSV files.
--   **💬 Intelligent Conversation Memory:** Utilizes a combination of buffer and summary memory to maintain context over long conversations, with the state persisted to a local file.
--   **🌐 Simple Web Interface:** A clean and functional web UI built with Streamlit for easy text-based chatting.
-
----
-
-## 🛠️ Tech Stack
-
--   **Core:** Python, LangChain
--   **LLMs:** Ollama (with models like `gemma2:2b`, `phi3`)
--   **Voice:** `speech_recognition`, `pyttsx3`
--   **Web UI:** Streamlit
--   **Tooling:** Selenium (for YouTube), Pandas (for CSV), Requests
--   **APIs:** SerpAPI (for search), OpenWeatherMap (for weather)
-
----
-
-## 📂 Project Structure
+## Architecture
 
 ```
-project_SK/
-├── app.py                  # Streamlit web application for text-based chat
-├── fullworking_chatbot.ipynb # Jupyter Notebook with the full voice agent logic
-├── sk_listen.py            # Handles wake-word detection and speech-to-text
-├── sk_speak.py             # Handles text-to-speech conversion
-├── sk_tools.py             # Defines the suite of tools for the LangChain agent
-├── yt_control.py           # Manages Selenium-based YouTube browser automation
-├── chat_memory.json        # Stores conversation history to maintain context
-└── README.md               
+User  ──►  Orchestrator
+              │
+    ┌─────────┼──────────┬──────────┬──────────┐──────────┐
+    ▼         ▼          ▼          ▼          ▼          ▼
+Research   Media       Data      System   Conversation    Mcp 
+Agent      Agent       Agent     Agent      Agent        Agent
+│                      │
+├─ WebSearchAgent    ├─ MathAgent
+└─ WikiAgent         └─ CSVAgent
+```
+
+**Every agent has its own `SummarizationMiddleware`** that keeps a rolling buffer of recent turns plus a compressed summary — so no agent's context ever grows unbounded.
+
+---
+
+## Project Structure
+
+```
+deep_agent/
+├── main.py                      # Entry point  (cli | telegram | whatsapp)
+├── universal_llm.py             # Multi-provider LLM wrapper
+├── yt_control.py                # YouTube Selenium controller
+├── requirements.txt
+├── .env.template                # Copy to .env and fill in keys
+│
+├── config/
+│   └── settings.py              # LLM assignments per agent, API keys
+│
+├── middleware/
+│   └── summarizer.py            # SummarizationMiddleware (per-agent memory)
+│
+├──mcp/
+│   ├── mcp_client.py
+│   ├── mcp_registry.py
+│      
+├── agents/
+│   ├── base_agent.py            # BaseSubAgent (all agents inherit this)
+│   ├── orchestrator.py          # Master orchestrator  ← main router
+│   ├── research_agent.py        # ResearchAgent → WebSearchAgent + WikiAgent
+│   ├── media_agent.py           # MediaAgent (YouTube)
+│   ├── data_agent.py            # DataAgent → MathAgent + CSVAgent
+│   ├── system_agent.py          # SystemAgent (weather, time, OS)
+│   ├── mcp_agent.py             # McpAgent (file system, git, fetch, memory)
+│   └── conversation_agent.py    # ConversationAgent (chat fallback)
+│
+├── interfaces/
+│   ├── cli.py                   # Terminal interface
+│   ├── telegram_bot.py          # Telegram bot
+│   └── whatsapp_bot.py          # WhatsApp Meta Cloud API webhook
+│
+└── memory_store/                # Auto-created; holds per-agent JSON memories
 ```
 
 ---
 
-## ⚙️ Setup and Installation
+## Quick Start
 
-Follow these steps to get Project_SK running on your local machine.
-
-### Prerequisites
-
--   Python 3.9+
--   Ollama installed and running.
--   Google Chrome browser (for Selenium-based YouTube control).
--   A working microphone for voice commands.
-
-### Installation Steps
-
-1.  **Clone the Repository**
-
-    ```bash
-    git clone https://github.com/IshwikVashishtha/Project_SK.git
-    cd Project_SK
-    ```
-
-2.  **Create a Virtual Environment**
-
-    ```bash
-    # For Windows
-    python -m venv .venv
-    .\.venv\Scripts\activate
-
-    # For macOS/Linux
-    python3 -m venv .venv
-    source .venv/bin/activate
-    ```
-
-3.  **Install Dependencies**
-
-    Create a `requirements.txt` file with the following content:
-
-    ```txt
-    langchain
-    langchain-core
-    langchain-ollama
-    streamlit
-    speechrecognition
-    pyttsx3
-    PyAudio
-    selenium
-    pandas
-    requests
-    wikipedia
-    google-search-results
-    ```
-
-    Then, install them using pip:
-
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-4.  **Pull Ollama Models**
-
-    Run the following commands in your terminal to download the required LLMs:
-
-    ```bash
-    ollama pull gemma2:2b
-    ollama pull phi3
-    ```
-
-5.  **Set Up Environment Variables**
-
-    Create a file named `.env` in the root of the project directory and add your API keys and local configuration.
-
-    ```env
-    # .env
-
-    # Your machine's local IP where Ollama is running
-    OLLAMA_BASE_URL="http://192.168.8.4:11434"
-
-    # API key for web search (get one from https://serpapi.com/)
-    SERPAPI_API_KEY="your_serpapi_key_here"
-
-    # API key for weather (get one from https://openweathermap.org/api)
-    WETHER_API_KEY="your_openweathermap_key_here"
-    ```
-
-    *Note: Replace `192.168.1.5` with your machine's actual local IP address.*
-
----
-
-## ▶️ How to Run
-
-### 1. Voice-Activated Assistant
-
-The primary logic for the voice assistant is contained within `fullworking_chatbot.ipynb`.
-
-1.  Start a Jupyter server: `jupyter notebook`
-2.  Open `fullworking_chatbot.ipynb`.
-3.  Run the cells in order. The last cell will start the listener.
-4.  The console will print `🎤 Listening continuously...`. You can now use the wake word.
-
-**Usage Example:**
-> "Jarvis, what's the weather like in New York?"
-
-> "Jarvis, play a song by Arijit Singh on YouTube."
-
-> "Jarvis, what is 5 factorial?"
-
-### 2. Streamlit Web App (Text-Only)
-
-For a simple, text-based chat interface, run the Streamlit app.
+### 1. Install dependencies
 
 ```bash
-streamlit run app.py
+pip install -r requirements.txt
 ```
 
-This will open a new tab in your browser where you can chat with the AI.
+### 2. Set up environment
+
+```bash
+cp .env.template .env
+# Edit .env and fill in OLLAMA_BASE_URL, API keys, etc.
+```
+
+### 3. Pull Ollama models
+
+```bash
+ollama pull gemma2:2b
+ollama pull phi3
+```
+
+### 4. Run
+
+```bash
+# CLI (local terminal)
+python main.py cli
+
+# Telegram bot
+python main.py telegram
+
+# WhatsApp webhook
+python main.py whatsapp
+```
+
+---
+
+## Changing Which LLM Each Agent Uses
+
+Edit `config/settings.py` (or the matching `.env` variables):
+
+```python
+AGENT_LLM_CONFIG = {
+    "orchestrator": {"provider": "openai",    "model": "gpt-4o"},
+    "research":     {"provider": "groq",      "model": "llama3-8b-8192"},
+    "media":        {"provider": "ollama",    "model": "phi3"},
+    "data":         {"provider": "ollama",    "model": "phi3"},
+    "system":       {"provider": "ollama",    "model": "phi3"},
+    "summarizer":   {"provider": "ollama",    "model": "phi3"},
+}
+```
+
+Any provider supported by `UniversalLLM` works: `ollama`, `openai`, `anthropic`, `google_gemini`, `groq`, `azure_openai`, `openrouter`, `custom_openai`.
+
+---
+
+## Capabilities
+
+| What you say              | Agent triggered     | What happens                          |
+|---------------------------|---------------------|---------------------------------------|
+| "What is quantum computing?" | ResearchAgent → WikiAgent | Wikipedia lookup + summary     |
+| "Latest news about AI"    | ResearchAgent → WebSearchAgent | SerpAPI search             |
+| "Play Arijit Singh"       | MediaAgent          | YouTube opens and plays               |
+| "Skip the ad"             | MediaAgent          | Selenium clicks Skip Ad               |
+| "What is 5 factorial?"    | DataAgent → MathAgent | `math.factorial(5)` = 120           |
+| "Convert 100 km to miles" | DataAgent → MathAgent | Unit conversion                     |
+| "Analyse sales.csv"       | DataAgent → CSVAgent | Pandas stats on the file             |
+| "Weather in Meerut"       | SystemAgent         | OpenWeatherMap API call               |
+| "What time is it?"        | SystemAgent         | Local datetime                        |
+| "Tell me a joke"          | ConversationAgent   | Friendly chat                         |
+
+---
+
+## Memory System
+
+Each agent maintains two layers of memory (stored in `memory_store/`):
+
+- **Buffer** — last 6 conversation turns verbatim
+- **Running Summary** — compressed history of older turns (done by the summarizer LLM)
+
+When the buffer exceeds 10 turns, it's compressed into the summary and the buffer is trimmed. This ensures the context sent to the LLM stays small regardless of conversation length.
+
+---
+
+## Telegram Setup
+
+1. Create a bot with [@BotFather](https://t.me/BotFather) and get a token
+2. Set `TELEGRAM_BOT_TOKEN=...` in `.env`
+3. Run `python main.py telegram`
+
+## WhatsApp Setup
+
+1. Create a Meta Developer App with WhatsApp product
+2. Set `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_ID`, `WHATSAPP_VERIFY_TOKEN` in `.env`
+3. Run `python main.py whatsapp`
+4. Expose port 5000 publicly (e.g. `ngrok http 5000`)
+5. Register webhook URL in Meta dashboard: `https://your-ngrok-url/webhook`
+
+---
+
+## MCP Integration
+
+DeepAgent now includes a dedicated **MCPAgent** that connects to any MCP (Model Context Protocol) server and exposes their tools to the LLM automatically.
+
+### Updated Architecture
+
+```
+User → Orchestrator
+           ├── ResearchAgent   (web + Wikipedia)
+           ├── MediaAgent      (YouTube)
+           ├── DataAgent       (math + CSV)
+           ├── SystemAgent     (weather, time)
+           ├── ConversationAgent (chat)
+           └── MCPAgent  ◄── NEW
+                   ├── MCPFilesystemAgent   (read/write files)
+                   ├── MCPGitAgent          (git + GitHub)
+                   ├── MCPCommunicationAgent(Gmail + Slack + Notion)
+                   ├── MCPDatabaseAgent     (Postgres + SQLite)
+                   ├── MCPBrowserAgent      (Puppeteer + Fetch)
+                   └── MCPMemoryAgent       (persistent KV memory)
+```
+
+### MCP Servers Included
+
+| Server | Capability | Needs API key? | What it does |
+|---|---|---|---|
+| `filesystem` | filesystem | ❌ | Read/write/search local files |
+| `git` | git | ❌ | Git status, diff, commit, branch |
+| `github` | git | ✅ `GITHUB_TOKEN` | Issues, PRs, search code |
+| `gdrive` | gdrive | ✅ OAuth | Google Drive files/docs |
+| `gmail` | gmail | ✅ OAuth | Send/read emails |
+| `slack` | slack | ✅ `SLACK_BOT_TOKEN` | Post/read Slack messages |
+| `notion` | notion | ✅ `NOTION_API_KEY` | Read/write Notion pages |
+| `postgres` | database | ✅ `POSTGRES_URL` | SQL queries |
+| `sqlite` | database | ❌ | Local SQLite queries |
+| `brave_search` | search | ✅ `BRAVE_API_KEY` | Privacy-focused web search |
+| `fetch` | browser | ❌ | Fetch any URL as markdown |
+| `puppeteer` | browser | ❌ | Browser automation |
+| `memory` | memory | ❌ | Persistent key-value store |
+| `docker` | devops | ❌ | Docker container management |
+
+### Enabling MCP Servers
+
+**Step 1** — Install prerequisites:
+```bash
+pip install mcp langchain-mcp-adapters
+npm install -g npx        # for npx-based servers
+pip install uvx           # or: pip install uv
+```
+
+**Step 2** — Enable in `.env`:
+```env
+# Servers that need no API key — just toggle on:
+MCP_FILESYSTEM_ENABLED=true
+MCP_GIT_ENABLED=true
+MCP_FETCH_ENABLED=true
+MCP_MEMORY_ENABLED=true
+
+# Servers that need credentials:
+GITHUB_TOKEN=ghp_...
+SLACK_BOT_TOKEN=xoxb-...
+NOTION_API_KEY=secret_...
+```
+
+**Step 3** — Run as normal:
+```bash
+python main.py cli
+```
+
+DeepAgent will auto-detect which servers are configured and load their tools at startup.
+
+### Adding a Custom MCP Server
+
+Add one entry to `mcp/mcp_registry.py`:
+
+```python
+"my_server": {
+    "transport":    "stdio",
+    "command":      "npx",
+    "args":         ["-y", "my-mcp-server-package"],
+    "env":          {"MY_API_KEY": os.getenv("MY_API_KEY", "")},
+    "description":  "What this server does.",
+    "capability":   "my_capability",       # used for routing
+    "required_env": ["MY_API_KEY"],        # must be set for auto-enable
+    "enabled":      bool(os.getenv("MY_API_KEY")),
+},
+```
+
+Then add keywords for it in `agents/mcp_agent.py` under `MCP_ROUTING`.
+
+### Example MCP Commands
+
+| You say | What happens |
+|---|---|
+| "Read the file at ~/notes.txt" | MCPFilesystemAgent reads the file |
+| "What's the git status of my repo?" | MCPGitAgent runs `git status` |
+| "Create a GitHub issue titled Bug in login" | MCPGitAgent creates issue via GitHub API |
+| "Send an email to boss@company.com about the report" | MCPCommunicationAgent sends via Gmail |
+| "Post 'Deploy done' in the #general Slack channel" | MCPCommunicationAgent posts to Slack |
+| "Query: SELECT * FROM users LIMIT 5" | MCPDatabaseAgent runs SQL |
+| "Open https://example.com and take a screenshot" | MCPBrowserAgent uses Puppeteer |
+| "Remember that my preference is dark mode" | MCPMemoryAgent stores the preference |
+| "What did I tell you to remember?" | MCPMemoryAgent retrieves stored info |
