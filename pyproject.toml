@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "browser-use>=0.11.13",
     "flask>=3.0.0",
     "google-search-results>=2.4.2",
     "httpx>=0.27.0",

@@ -190,7 +190,7 @@ class ToolProxyRegistry:
             return
         self._started = True
 
-        from mcp_server.mcp_registry import get_enabled_servers
+        from mcp_servers.mcp_registry import get_enabled_servers
         enabled = get_enabled_servers()
 
         if not enabled:

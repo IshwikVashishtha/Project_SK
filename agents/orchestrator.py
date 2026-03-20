@@ -1,4 +1,6 @@
 """
+agents/orchestrator.py
+════════════════════════
 Master Orchestrator — binary routing decision:
   1. Clearly a specialist task? → Research / Media / Data / System / Conversation
   2. Needs external integration? → MCPAgent (handles everything itself via ReAct)
@@ -14,13 +16,14 @@ _sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)
 import logging
 from langchain_core.messages import HumanMessage
 
-from agents.base_agent        import BaseSubAgent
+from agents.base_agent        import BaseSubAgent, _extract_text
 from agents.research_agent    import ResearchAgent
 from agents.media_agent       import MediaAgent
 # from agents.data_agent        import DataAgent
 from agents.system_agent      import SystemAgent
 from agents.conversation_agent import ConversationAgent
 from agents.mcp_agent         import MCPAgent
+from agents.file_agent        import FileAgent
 
 logger = logging.getLogger(__name__)
 
@@ -39,16 +42,21 @@ SPECIALIST_KEYWORDS: dict[str, list[str]] = {
         "play", "song", "music", "youtube", "video", "pause", "resume",
         "skip ad", "stop playing", "open youtube", "close youtube",
     ],
-    "data": [
-        "calculate", "compute", "solve", "math", "sqrt", "factorial",
-        "convert", "units", "csv", "analyse data", "statistics",
-        "average of", "sum of", "how many rows",
-    ],
     "system": [
         "weather", "temperature", "forecast", "what time", "current time",
         "date today", "what day", "system info", "os version",
     ],
 }
+
+
+FILE_KEYWORDS: list[str] = [
+    "send me a file", "send the file", "send a file",
+    "give me the file", "get me a file", "i want a file",
+    "i need a file", "create a file", "make a file",
+    "generate a file", "download", "export to", "save as",
+    "write to file", "send me the", ".csv", ".txt", ".json",
+    ".pdf", ".xlsx", ".md", ".py", ".log", ".yaml", ".html",
+]
 
 # MCP keywords — only used when MCP servers are actually live
 MCP_KEYWORDS: list[str] = [
@@ -90,8 +98,9 @@ class Orchestrator(BaseSubAgent):
         self.system_agent        = SystemAgent()
         self.conversation_agent  = ConversationAgent()
         self.mcp_agent           = MCPAgent()
+        self.file_agent          = FileAgent()
 
-        logger.info("✅ Orchestrator ready (Research | Media | Data | System | MCP | Chat)")
+        logger.info("✅ Orchestrator ready (Research | Media | System | MCP | Chat)")
 
     def _load_tools(self):
         return []
@@ -119,9 +128,9 @@ class Orchestrator(BaseSubAgent):
         return bool(caps)
 
     def _llm_classify(self, text: str, has_mcp: bool) -> str:
-        categories = "research | media | data | system | conversation"
+        categories = "research | media | system | file | conversation"
         if has_mcp:
-            categories = "research | media | data | system | mcp | conversation"
+            categories = "research | media | system | file | mcp | conversation"
 
         mcp_note = ""
         if has_mcp:
@@ -137,8 +146,8 @@ class Orchestrator(BaseSubAgent):
         )
         try:
             result  = self.llm.invoke([HumanMessage(content=prompt)])
-            intent  = result.content.strip().lower().split()[0]
-            valid   = {"research", "media", "data", "system", "conversation", "mcp"}
+            intent  = _extract_text(result).strip().lower().split()[0]
+            valid   = {"research", "media", "data", "system", "conversation", "mcp", "file"}
             return  intent if intent in valid else "conversation"
         except Exception:
             return "conversation"
@@ -154,15 +163,19 @@ class Orchestrator(BaseSubAgent):
         if score >= 2:
             return specialist
 
-        # Stage 2: MCP keyword match (only if servers live)
+        # Stage 2: File send/create request
+        if any(kw in text.lower() for kw in FILE_KEYWORDS):
+            return "file"
+
+        # Stage 3: MCP keyword match (only if servers live)
         if self._wants_mcp(text):
             return "mcp"
 
-        # Stage 3: single specialist keyword match
+        # Stage 4: single specialist keyword match
         if score == 1:
             return specialist
 
-        # Stage 4: LLM fallback
+        # Stage 5: LLM fallback
         return self._llm_classify(text, has_mcp)
 
     # ── Main entry ────────────────────────────
@@ -179,6 +192,7 @@ class Orchestrator(BaseSubAgent):
             "media":        self.media_agent,
             # "data":         self.data_agent,
             "system":       self.system_agent,
+            "file":         self.file_agent,
             "mcp":          self.mcp_agent,
             "conversation": self.conversation_agent,
         }
@@ -204,6 +218,7 @@ class Orchestrator(BaseSubAgent):
             # "  DataAgent         ✅  (math + CSV)",
             "  SystemAgent       ✅  (weather / time)",
             "  ConversationAgent ✅  (chat fallback)",
+            "  FileAgent         ✅  (create / find / send files)",
             "",
             self.mcp_agent.get_status(),
         ]

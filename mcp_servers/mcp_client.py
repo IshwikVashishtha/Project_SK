@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 def _mcp_available() -> bool:
     try:
-        import mcp_server                          # noqa: F401
+        import mcp_servers                          # noqa: F401
         import langchain_mcp_adapters       # noqa: F401
         return True
     except ImportError:
@@ -121,7 +121,7 @@ class MCPClientManager:
         if self._initialized:
             return self
 
-        from mcp_server.mcp_registry import get_enabled_servers
+        from mcp_servers.mcp_registry import get_enabled_servers
         enabled = get_enabled_servers()
 
         if not enabled:
@@ -148,7 +148,7 @@ class MCPClientManager:
 
     def get_tools_by_capability(self, capability: str) -> List[Any]:
         """Return tools from servers matching a capability tag."""
-        from mcp_server.mcp_registry import MCP_SERVERS
+        from mcp_servers.mcp_registry import MCP_SERVERS
         tools = []
         for name, conn in self._connections.items():
             if MCP_SERVERS.get(name, {}).get("capability") == capability:

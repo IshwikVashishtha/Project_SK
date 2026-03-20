@@ -1,4 +1,6 @@
 """
+agents/mcp_agent.py
+════════════════════
 MCPAgent — thin ReAct agent powered by ToolProxyRegistry.
 
 The orchestrator sends a full user query here.
@@ -18,7 +20,7 @@ from typing import List, Any
 from langchain.agents import create_agent
 from langchain_core.messages import SystemMessage, HumanMessage
 
-from agents.base_agent import BaseSubAgent
+from agents.base_agent import BaseSubAgent, _extract_text
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +50,7 @@ class MCPAgent(BaseSubAgent):
         super().__init__()
         # Registry is started once globally — just get the reference here
         try:
-            from mcp_server.proxy import get_registry
+            from mcp_servers.proxy import get_registry
             self._registry = get_registry()
             caps = self._registry.get_available_capabilities()
             if caps:
@@ -104,7 +106,7 @@ class MCPAgent(BaseSubAgent):
                 model=self.llm,
             )
             result   = agent_executor.invoke({"input": full_prompt})
-            response = result.get("output", str(result))
+            response = _extract_text(result)
 
         except Exception as e:
             logger.error(f"[MCPAgent] ReAct error: {e}")

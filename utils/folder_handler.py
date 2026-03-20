@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Optional
 
 # Reuse skip dirs and location map from file_handler
-from utility.file_handler import SKIP_DIRS, LOCATION_MAP, DEFAULT_ROOTS, save_temp_file
+from utils.file_handler import SKIP_DIRS, LOCATION_MAP, DEFAULT_ROOTS, save_temp_file
 
 
 # ── Folder name inference ─────────────────────────────────────────
