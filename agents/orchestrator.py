@@ -2,7 +2,7 @@
 agents/orchestrator.py
 ════════════════════════
 Master Orchestrator — binary routing decision:
-  1. Clearly a specialist task? → Research / Media / Data / System / Conversation
+  1. Clearly a specialist task? → Research / Media / System / Conversation
   2. Needs external integration? → MCPAgent (handles everything itself via ReAct)
 
 The orchestrator checks the LIVE MCP capability list before routing to MCPAgent,
@@ -19,7 +19,6 @@ from langchain_core.messages import HumanMessage
 from agents.base_agent        import BaseSubAgent, _extract_text
 from agents.research_agent    import ResearchAgent
 from agents.media_agent       import MediaAgent
-# from agents.data_agent        import DataAgent
 from agents.system_agent      import SystemAgent
 from agents.conversation_agent import ConversationAgent
 from agents.mcp_agent         import MCPAgent
@@ -50,19 +49,28 @@ SPECIALIST_KEYWORDS: dict[str, list[str]] = {
 
 
 FILE_KEYWORDS: list[str] = [
+    # file operations
     "send me a file", "send the file", "send a file",
     "give me the file", "get me a file", "i want a file",
     "i need a file", "create a file", "make a file",
-    "generate a file", "download", "export to", "save as",
+    "generate a file", "export to", "save as",
     "write to file", "send me the", ".csv", ".txt", ".json",
     ".pdf", ".xlsx", ".md", ".py", ".log", ".yaml", ".html",
+    # folder operations — must be here so they route to FileAgent not MCPAgent
+    "folder", "directory", "mkdir",
+    "zip the", "zip folder", "compress the", "compress folder",
+    "archive the", "send me the folder", "give me the folder",
+    "list folder", "list directory", "list the folder",
+    "show folder", "contents of", "what's in", "whats in",
+    "create folder", "make folder", "open folder",
+    "copy folder", "move folder",
 ]
 
 # MCP keywords — only used when MCP servers are actually live
 MCP_KEYWORDS: list[str] = [
-    # filesystem
+    # filesystem (only explicit MCP-style ops, NOT general folder/file words)
     "read file", "write file", "create file", "list files", "delete file",
-    "open file", "folder", "directory", "find file", "edit file",
+    "edit file", "open file",
     # git / github
     "git", "github", "commit", "branch", "pull request", " pr ", "issue",
     "repository", "repo", "diff", "merge", "clone",
@@ -86,7 +94,7 @@ class Orchestrator(BaseSubAgent):
     system_prompt = (
         "You are the master orchestrator of a multi-agent AI system called SK. "
         "Classify the user message into exactly one category: "
-        "research | media | data | system | mcp | conversation. "
+        "research | media | system | mcp | conversation. "
         "Reply with only the category word."
     )
 
@@ -94,13 +102,12 @@ class Orchestrator(BaseSubAgent):
         super().__init__()
         self.research_agent      = ResearchAgent()
         self.media_agent         = MediaAgent()
-        # self.data_agent          = DataAgent()
         self.system_agent        = SystemAgent()
         self.conversation_agent  = ConversationAgent()
         self.mcp_agent           = MCPAgent()
         self.file_agent          = FileAgent()
 
-        logger.info("✅ Orchestrator ready (Research | Media | System | MCP | Chat)")
+        logger.info("✅ Orchestrator ready (Research | Media | System | MCP | File | Chat)")
 
     def _load_tools(self):
         return []
@@ -147,7 +154,7 @@ class Orchestrator(BaseSubAgent):
         try:
             result  = self.llm.invoke([HumanMessage(content=prompt)])
             intent  = _extract_text(result).strip().lower().split()[0]
-            valid   = {"research", "media", "data", "system", "conversation", "mcp", "file"}
+            valid   = {"research", "media", "system", "conversation", "mcp", "file"}
             return  intent if intent in valid else "conversation"
         except Exception:
             return "conversation"
@@ -190,7 +197,6 @@ class Orchestrator(BaseSubAgent):
         routing = {
             "research":     self.research_agent,
             "media":        self.media_agent,
-            # "data":         self.data_agent,
             "system":       self.system_agent,
             "file":         self.file_agent,
             "mcp":          self.mcp_agent,
@@ -215,7 +221,6 @@ class Orchestrator(BaseSubAgent):
             "  Orchestrator      ✅",
             "  ResearchAgent     ✅  (web + Wikipedia)",
             "  MediaAgent        ✅  (YouTube)",
-            # "  DataAgent         ✅  (math + CSV)",
             "  SystemAgent       ✅  (weather / time)",
             "  ConversationAgent ✅  (chat fallback)",
             "  FileAgent         ✅  (create / find / send files)",
