@@ -35,16 +35,18 @@ AGENT_LLM_CONFIG = {
 
     # System agent — weather, time, OS info (small model fine)
     "system": {
-        "provider":    os.getenv("SYSTEM_PROVIDER", "groq"),
-        "model":       os.getenv("SYSTEM_MODEL",    "llama-3.1-8b-instant"),
+        "provider":    os.getenv("SYSTEM_PROVIDER", "google"),
+        "model":       os.getenv("SYSTEM_MODEL",    "gemini-3-flash-preview"),
         "temperature": 0.1,
         "max_tokens":  600,
     },
 
     # MCP agent — needs tool-calling support
     "mcp": {
-        "provider":    os.getenv("MCP_PROVIDER", "google"),
-        "model":       os.getenv("MCP_MODEL",    "gemini-3-flash-preview"),
+        "provider":    os.getenv("MCP_PROVIDER", "openrouter"),
+        "model":       os.getenv("MCP_MODEL",    "nvidia/nemotron-3-super-120b-a12b:free"),
+        # "provider":    os.getenv("MCP_PROVIDER", "google"),
+        # "model":       os.getenv("MCP_MODEL",    "gemini-3-flash-preview"),
         "temperature": 0.1,
         "max_tokens":  1500,
     },

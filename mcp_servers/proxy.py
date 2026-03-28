@@ -1,4 +1,6 @@
 """
+mcp_servers/proxy.py
+═════════════════════
 ToolProxyRegistry
 ─────────────────
 • Launches all enabled MCP server subprocesses once at startup
@@ -117,17 +119,26 @@ class ServerProxy:
         logger.info(f"[{self.name}] connected — {len(wrapped)} tools")
 
     def _wrap_tool(self, mcp_tool) -> Tool:
-        """Wrap an MCP tool so its async call runs on this proxy's event loop."""
+        """
+        Wrap an MCP tool so its async call runs on this proxy's event loop.
+        Handles the 'config' kwarg required by newer langchain-mcp-adapters.
+        """
         proxy = self
 
-        def sync_call(input_str: str) -> str:
+        def sync_call(input_str: str, **kwargs) -> str:
             if not proxy.healthy:
                 return f"[{proxy.name}] server is currently unavailable."
             try:
-                # mcp_tool may be a BaseTool with async _arun or sync _run
-                if asyncio.iscoroutinefunction(getattr(mcp_tool, '_arun', None)):
+                # Use invoke() which handles both sync and async internally
+                # and accepts the config kwarg that newer LangChain passes
+                if hasattr(mcp_tool, 'invoke'):
                     future = asyncio.run_coroutine_threadsafe(
-                        mcp_tool._arun(input_str), proxy._loop
+                        mcp_tool.ainvoke(input_str), proxy._loop
+                    )
+                    return str(future.result(timeout=30))
+                elif asyncio.iscoroutinefunction(getattr(mcp_tool, '_arun', None)):
+                    future = asyncio.run_coroutine_threadsafe(
+                        mcp_tool._arun(input_str, **kwargs), proxy._loop
                     )
                     return str(future.result(timeout=30))
                 else:
