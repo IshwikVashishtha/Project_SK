@@ -1,229 +1,260 @@
 """
-agents/orchestrator.py
-════════════════════════
-Master Orchestrator — binary routing decision:
-  1. Clearly a specialist task? → Research / Media / System / Conversation
-  2. Needs external integration? → MCPAgent (handles everything itself via ReAct)
+Master Orchestrator
 
-The orchestrator checks the LIVE MCP capability list before routing to MCPAgent,
-so it never routes there when no servers are connected.
+Routing priority:
+  1. LLM classification  ← PRIMARY (understands context and ambiguity)
+  2. Keyword fallback    ← only if LLM fails or is unavailable
+
+The LLM receives:
+  - the user message
+  - available agent categories
+  - live MCP capabilities (so it knows what's actually connected)
 """
 
 from __future__ import annotations
-import sys as _sys, os as _os
-_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
-
+import sys
+import os
+import asyncio
 import logging
-from langchain_core.messages import HumanMessage
+from typing import List, Any
 
-from agents.base_agent        import BaseSubAgent, _extract_text
-from agents.research_agent    import ResearchAgent
-from agents.media_agent       import MediaAgent
-from agents.system_agent      import SystemAgent
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from langchain_core.messages import HumanMessage
+from universal_llm import UniversalLLM
+from middleware.summarizer import SummarizationMiddleware
+from config.settings import AGENT_LLM_CONFIG, MEMORY_DIR, BUFFER_WINDOW_SIZE, SUMMARY_THRESHOLD
+
+# Lazy imports to avoid circular dependencies
+from agents.research_agent     import ResearchAgent
 from agents.conversation_agent import ConversationAgent
-from agents.mcp_agent         import MCPAgent
-from agents.file_agent        import FileAgent
+from agents.file_agent         import FileAgent
+from agents.github_agent       import GitHubAgent
+# Missing imports for other agents
 
 logger = logging.getLogger(__name__)
 
 
+def _extract_text(result) -> str:
+    """
+    Safely extract string from ANY LLM or agent result.
+    """
+    if isinstance(result, dict):
+        return result.get("output", str(result))
+
+    content = getattr(result, "content", result)
+
+    if isinstance(content, str):
+        return content
+
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict):
+                parts.append(block.get("text", ""))
+            else:
+                parts.append(str(block))
+        return "".join(parts)
+
+    return str(content)
+
+
+VALID_INTENTS = {"research", "file", "mcp", "conversation", "github"}    
+
 # ─────────────────────────────────────────────
-# Keyword tables
+# Keyword fallback tables (used ONLY if LLM fails)
 # ─────────────────────────────────────────────
 
-SPECIALIST_KEYWORDS: dict[str, list[str]] = {
+_FALLBACK_KEYWORDS: dict[str, list[str]] = {
+    # "github": [
+    #     "github", "git", "commit", "branch", "pull request", "issue",
+    #     "repository", "repo", "merge",
+    # ],
+    "file": [
+        "send me a file", "send the file", "send a file", "give me the file",
+        "get me a file", "i want a file", "create a file", "make a file",
+        "generate a file", "export to", "save as", "write to file",
+        ".csv", ".txt", ".json", ".pdf", ".xlsx", ".md", ".py", ".log",
+        ".yaml", ".html", "folder", "directory", "mkdir", "zip the",
+        "zip folder", "compress", "archive", "list folder", "contents of",
+        "what's in", "whats in", "create folder", "make folder",
+    ],
+    "mcp": [
+    "github", "git", "commit", "branch", "pull request", "issue",
+        "repository", "repo", "merge", "diff", "email", "gmail",
+        "slack", "notion", "sql", "query", "database", "postgres",
+        "sqlite", "browse", "screenshot", "fetch url", "scrape",
+        "remember this", "store this", "recall", "docker", "container",
+    ],
     "research": [
-        "search", "look up", "find out", "what is", "who is", "explain",
-        "define", "news", "latest", "wikipedia", "history", "tell me about",
-        "facts about", "why is", "how does", "learn about",
-    ],
-    "media": [
-        "play", "song", "music", "youtube", "video", "pause", "resume",
-        "skip ad", "stop playing", "open youtube", "close youtube",
-    ],
-    "system": [
-        "weather", "temperature", "forecast", "what time", "current time",
-        "date today", "what day", "system info", "os version",
+        "search", "look up", "what is", "who is", "explain", "define",
+        "news", "latest", "wikipedia", "history", "tell me about",
+        "why is", "how does",
     ],
 }
 
 
-FILE_KEYWORDS: list[str] = [
-    # file operations
-    "send me a file", "send the file", "send a file",
-    "give me the file", "get me a file", "i want a file",
-    "i need a file", "create a file", "make a file",
-    "generate a file", "export to", "save as",
-    "write to file", "send me the", ".csv", ".txt", ".json",
-    ".pdf", ".xlsx", ".md", ".py", ".log", ".yaml", ".html",
-    # folder operations — must be here so they route to FileAgent not MCPAgent
-    "folder", "directory", "mkdir",
-    "zip the", "zip folder", "compress the", "compress folder",
-    "archive the", "send me the folder", "give me the folder",
-    "list folder", "list directory", "list the folder",
-    "show folder", "contents of", "what's in", "whats in",
-    "create folder", "make folder", "open folder",
-    "copy folder", "move folder",
-]
+def _keyword_fallback(text: str, has_mcp: bool) -> str:
+    """
+    Simple keyword fallback — only called when LLM classification fails.
+    Scores each category and returns the highest match.
+    """
+    lower = text.lower()
+    scores: dict[str, int] = {k: 0 for k in _FALLBACK_KEYWORDS}
 
-# MCP keywords — only used when MCP servers are actually live
-MCP_KEYWORDS: list[str] = [
-    # filesystem (only explicit MCP-style ops, NOT general folder/file words)
-    "read file", "write file", "create file", "list files", "delete file",
-    "edit file", "open file",
-    # git / github
-    "git", "github", "commit", "branch", "pull request", " pr ", "issue",
-    "repository", "repo", "diff", "merge", "clone",
-    # communication
-    "email", "gmail", "send mail", "inbox", "slack", "send message",
-    "notify", "notion", "post in",
-    # database
-    "sql", "query", "database", "postgres", "sqlite", "select ", "insert ",
-    # browser / fetch
-    "browse", "screenshot", "open url", "fetch url", "scrape", "visit site",
-    # memory
-    "remember this", "store this", "recall", "what did i tell you",
-    "save this for later",
-    # docker
-    "docker", "container",
-]
+    for intent, keywords in _FALLBACK_KEYWORDS.items():
+        for kw in keywords:
+            if kw in lower:
+                scores[intent] += 1
+
+    best = max(scores, key=scores.get)
+    return best if scores[best] > 0 else "conversation"
 
 
-class Orchestrator(BaseSubAgent):
+class Orchestrator:
+    """
+    Master Orchestrator — handles classification and routing.
+    Independent of BaseSubAgent.
+    """
     agent_name    = "orchestrator"
     system_prompt = (
         "You are the master orchestrator of a multi-agent AI system called SK. "
-        "Classify the user message into exactly one category: "
-        "research | media | system | mcp | conversation. "
-        "Reply with only the category word."
+        "Classify the user message into exactly one category. "
+        "Reply with only the category word, nothing else."
     )
 
     def __init__(self):
-        super().__init__()
-        self.research_agent      = ResearchAgent()
-        self.media_agent         = MediaAgent()
-        self.system_agent        = SystemAgent()
-        self.conversation_agent  = ConversationAgent()
-        self.mcp_agent           = MCPAgent()
-        self.file_agent          = FileAgent()
+        # Initialize LLM and Memory directly
+        cfg = AGENT_LLM_CONFIG.get(self.agent_name, AGENT_LLM_CONFIG["orchestrator"])
+        self.llm = UniversalLLM(**cfg).get_model()
 
-        logger.info("✅ Orchestrator ready (Research | Media | System | MCP | File | Chat)")
+        sum_cfg = AGENT_LLM_CONFIG["summarizer"]
+        self.summarizer_llm = UniversalLLM(**sum_cfg).get_model()
 
-    def _load_tools(self):
-        return []
+        self.memory = SummarizationMiddleware(
+            agent_name=self.agent_name,
+            summarizer_llm=self.summarizer_llm,
+            buffer_window=BUFFER_WINDOW_SIZE,
+            summary_threshold=SUMMARY_THRESHOLD,
+            memory_dir=MEMORY_DIR,
+        )
 
-    # ── Routing ───────────────────────────────
+        self._research_agent     = None
+        self._conversation_agent = None
+        self._file_agent         = None
+        self._github_agent       = None
+        logger.info("✅ Orchestrator ready (Lazy loading agents)")
 
-    def _score_specialist(self, text: str) -> tuple[str, int]:
-        lower = text.lower()
-        best, best_score = "conversation", 0
-        for intent, kws in SPECIALIST_KEYWORDS.items():
-            score = sum(1 for kw in kws if kw in lower)
-            if score > best_score:
-                best, best_score = intent, score
-        return best, best_score
+    @property
+    def research_agent(self):
+        if self._research_agent is None:
+            self._research_agent = ResearchAgent()
+        return self._research_agent
 
-    def _wants_mcp(self, text: str) -> bool:
-        """Check if text matches MCP keywords AND MCP has live servers."""
-        lower = text.lower()
-        keyword_match = any(kw in lower for kw in MCP_KEYWORDS)
-        if not keyword_match:
-            return False
-        # Only route to MCP if servers are actually up
-        caps = self.mcp_agent._registry.get_available_capabilities() \
-               if self.mcp_agent._registry else []
-        return bool(caps)
+    @property
+    def conversation_agent(self):
+        if self._conversation_agent is None:
+            self._conversation_agent = ConversationAgent()
+        return self._conversation_agent
 
-    def _llm_classify(self, text: str, has_mcp: bool) -> str:
-        categories = "research | media | system | file | conversation"
-        if has_mcp:
-            categories = "research | media | system | file | mcp | conversation"
+    @property
+    def file_agent(self):
+        if self._file_agent is None:
+            self._file_agent = FileAgent()
+        return self._file_agent
 
-        mcp_note = ""
-        if has_mcp:
-            caps = self.mcp_agent._registry.get_available_capabilities() \
-                   if self.mcp_agent._registry else []
-            mcp_note = f"\nLive MCP capabilities: {', '.join(caps)}"
+    @property
+    def github_agent(self):
+        if self._github_agent is None:
+            self._github_agent = GitHubAgent()
+        return self._github_agent
+
+    # ── Primary: LLM classification ──────────
+
+    async def _llm_classify(self, text: str) -> str:
+        """
+        Ask the LLM to classify the intent.
+        Gives it the full context — live MCP capabilities + available categories.
+        """
+
+        # Describe what each category does so the LLM makes an informed choice
+        descriptions = {
+            "github":       "GitHub operations, pull requests, issues, commits",
+            "research":     "web search, Wikipedia, facts, news, explanations",
+            "file":         "find/send/create files, list/zip/create folders",
+            "conversation": "general chat, questions, anything else",
+        }
+
+        category_list = "\n".join(
+            f"  {c}: {descriptions[c]}"
+            for c in categories
+            if descriptions.get(c)
+        )
 
         prompt = (
-            f"Classify this message into exactly one category: {categories}\n"
-            f"{mcp_note}\n\n"
-            f"Message: {text}\n\n"
-            "Reply with only the category word."
+            f"Classify the user message below into exactly ONE category.\n\n"
+            f"Categories:\n{category_list}\n\n"
+            f"User message: {text}\n\n"
+            f"Reply with only the category word."
         )
+
         try:
-            result  = self.llm.invoke([HumanMessage(content=prompt)])
-            intent  = _extract_text(result).strip().lower().split()[0]
-            valid   = {"research", "media", "system", "conversation", "mcp", "file"}
-            return  intent if intent in valid else "conversation"
-        except Exception:
-            return "conversation"
+            result = await self.llm.ainvoke([HumanMessage(content=prompt)])
+            intent = _extract_text(result).strip().lower().split()[0]
+            # Strip punctuation the LLM might add
+            intent = intent.strip(".,!?\"'")
+            if intent in VALID_INTENTS:
+                logger.info(f"[Orchestrator] LLM classified as: {intent}")
+                return intent
+            logger.warning(f"[Orchestrator] LLM returned unknown intent '{intent}' — falling back to keywords")
+        except Exception as e:
+            logger.warning(f"[Orchestrator] LLM classification failed: {e} — falling back to keywords")
 
-    def _classify(self, text: str) -> str:
-        has_mcp = bool(
-            self.mcp_agent._registry and
-            self.mcp_agent._registry.get_available_capabilities()
-        )
+        # Fallback to keywords if LLM fails
+        return _keyword_fallback(text, has_mcp=has_mcp)
 
-        # Stage 1: strong specialist keyword match
-        specialist, score = self._score_specialist(text)
-        if score >= 2:
-            return specialist
-
-        # Stage 2: File send/create request
-        if any(kw in text.lower() for kw in FILE_KEYWORDS):
-            return "file"
-
-        # Stage 3: MCP keyword match (only if servers live)
-        if self._wants_mcp(text):
-            return "mcp"
-
-        # Stage 4: single specialist keyword match
-        if score == 1:
-            return specialist
-
-        # Stage 5: LLM fallback
-        return self._llm_classify(text, has_mcp)
 
     # ── Main entry ────────────────────────────
 
-    def invoke(self, user_input: str) -> str:
+    async def invoke(self, user_input: str) -> str:
         user_input = user_input.strip()
         if not user_input:
             return "Please say something!"
 
-        intent = self._classify(user_input)
+        intent = await self._llm_classify(user_input)
 
         routing = {
+            "github":       self.github_agent,
             "research":     self.research_agent,
-            "media":        self.media_agent,
-            "system":       self.system_agent,
             "file":         self.file_agent,
-            "mcp":          self.mcp_agent,
             "conversation": self.conversation_agent,
         }
+
         agent = routing.get(intent, self.conversation_agent)
+        logger.info(f"Routing to agent: {intent}")
         print(f"  → [{intent.upper()}]")
 
         try:
-            response = agent.invoke(user_input)
+            response = await agent.invoke(user_input)
         except Exception as e:
-            response = f"Something went wrong: {e}"
+            logger.error(f"[Orchestrator] Error calling agent {intent}: {e}")
+            response = f"I ran into an error while handling your request: {e}"
 
-        self.memory.add_turn("user", user_input)
-        self.memory.add_turn("assistant", f"[{intent}] {response}")
+        await self.memory.add_turn("user", user_input)
+        await self.memory.add_turn("assistant", f"[{intent}] {response}")
         return response
 
     def get_status(self) -> str:
         lines = [
             "DeepAgent Status",
             "════════════════════════════════",
-            "  Orchestrator      ✅",
+            "  Orchestrator      ✅  (LLM-first routing)",
+            "  GitHubAgent       ✅  (GitHub API)",
             "  ResearchAgent     ✅  (web + Wikipedia)",
-            "  MediaAgent        ✅  (YouTube)",
-            "  SystemAgent       ✅  (weather / time)",
             "  ConversationAgent ✅  (chat fallback)",
-            "  FileAgent         ✅  (create / find / send files)",
+            "  FileAgent         ✅  (files + folders)",
             "",
             self.mcp_agent.get_status(),
         ]

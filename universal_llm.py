@@ -230,8 +230,8 @@ class UniversalLLM:
                 base_url="https://openrouter.ai/api/v1",
                 model=self.model,
                 default_headers={
-                    "HTTP-Referer": os.getenv("OPENROUTER_REFERRER", "https://github.com"),
-                    "X-Title": os.getenv("OPENROUTER_APP_TITLE", "DVWA Agent"),
+                    "HTTP-Referer": os.getenv("OPENROUTER_REFERRER", "https://bumblebee.ai/"),
+                    "X-Title": os.getenv("OPENROUTER_APP_TITLE", "Bumblebee Agent"),
                 },
                 **common_params
             )

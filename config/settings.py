@@ -15,11 +15,18 @@ load_dotenv()
 # ─────────────────────────────────────────────
 
 AGENT_LLM_CONFIG = {
+    # GitHub agent — needs strong reasoning for GitHub API
+    "github": {
+        "provider":    os.getenv("GITHUB_PROVIDER", "openrouter"),
+        "model":       os.getenv("GITHUB_MODEL",    "nvidia/nemotron-3-super-120b-a12b:free"),
+        "temperature": 0.2,
+        "max_tokens":  1500,
+    },
 
     # Orchestrator — needs strong reasoning for routing decisions
     "orchestrator": {
-        "provider":    os.getenv("ORCHESTRATOR_PROVIDER", "google"),
-        "model":       os.getenv("ORCHESTRATOR_MODEL",    "gemini-3-flash-preview"),
+        "provider":    os.getenv("ORCHESTRATOR_PROVIDER", "openrouter"),
+        "model":       os.getenv("ORCHESTRATOR_MODEL",    "nvidia/nemotron-3-super-120b-a12b:free"),
         "temperature": 0.2,
         "max_tokens":  1500,
     },
@@ -53,24 +60,24 @@ AGENT_LLM_CONFIG = {
 
     # File agent — generates file content, needs decent quality
     "file": {
-        "provider":    os.getenv("FILE_PROVIDER", "google"),
-        "model":       os.getenv("FILE_MODEL",    "gemini-3-flash-preview"),
+        "provider":    os.getenv("FILE_PROVIDER", "openrouter"),
+        "model":       os.getenv("FILE_MODEL",    "openai/gpt-oss-120b:free"),
         "temperature": 0.2,
         "max_tokens":  2000,
     },
 
     # Conversation agent — general chat, warm and friendly
     "conversation": {
-        "provider":    os.getenv("CONVERSATION_PROVIDER", "google"),
-        "model":       os.getenv("CONVERSATION_MODEL",    "gemini-3-flash-preview"),
+        "provider":    os.getenv("CONVERSATION_PROVIDER", "openrouter"),
+        "model":       os.getenv("CONVERSATION_MODEL",    "nvidia/nemotron-3-super-120b-a12b:free"),
         "temperature": 0.4,
         "max_tokens":  1000,
     },
 
     # Summarizer — compresses memory, keep it lightweight
     "summarizer": {
-        "provider":    os.getenv("SUMMARIZER_PROVIDER", "google"),
-        "model":       os.getenv("SUMMARIZER_MODEL",    "gemini-3-flash-preview"),
+        "provider":    os.getenv("SUMMARIZER_PROVIDER", "openrouter"),
+        "model":       os.getenv("SUMMARIZER_MODEL",    "nvidia/nemotron-3-super-120b-a12b:free"),
         "temperature": 0.1,
         "max_tokens":  400,
     },

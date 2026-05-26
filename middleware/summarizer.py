@@ -67,11 +67,11 @@ class SummarizationMiddleware:
     # Public API
     # ──────────────────────────────────────────
 
-    def add_turn(self, role: str, content: str):
-        """Add a new conversation turn."""
+    async def add_turn(self, role: str, content: str):
+        """Add a new conversation turn (Async)."""
         self.buffer.append(ConversationTurn(role, content))
         if len(self.buffer) >= self.summary_threshold:
-            self._compress()
+            await self._compress()
         self._save()
 
     def get_context(self) -> str:
@@ -90,8 +90,8 @@ class SummarizationMiddleware:
             parts.append(f"[Recent messages]\n{recent}")
         return "\n\n".join(parts) if parts else ""
 
-    def clear(self):
-        """Reset memory for this agent."""
+    async def clear(self):
+        """Reset memory for this agent (Async)."""
         self.buffer = []
         self.running_summary = ""
         self._save()
@@ -100,8 +100,8 @@ class SummarizationMiddleware:
     # Internal helpers
     # ──────────────────────────────────────────
 
-    def _compress(self):
-        """Summarize the current buffer and merge into running_summary."""
+    async def _compress(self):
+        """Summarize the current buffer and merge into running_summary (Async)."""
         turns_text = "\n".join(
             f"{t.role.capitalize()}: {t.content}" for t in self.buffer
         )
@@ -116,8 +116,10 @@ class SummarizationMiddleware:
         )
         try:
             from langchain_core.messages import HumanMessage
-            result = self.llm.invoke([HumanMessage(content=prompt)])
-            new_summary = result.content.strip()
+            result = await self.llm.ainvoke([HumanMessage(content=prompt)])
+            
+            # Use getattr for robustness
+            new_summary = getattr(result, "content", str(result)).strip()
         except Exception as e:
             # Fallback: keep last few turns as summary
             new_summary = (

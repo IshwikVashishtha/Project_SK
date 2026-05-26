@@ -1,8 +1,12 @@
 from __future__ import annotations
 import os, sys
 import pathfinder
-
-from agents.orchestrator import Orchestrator
+from Agent import build_graph
+import logging
+from agentstate import AgentState
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+from Agent import run_agent
 BIGBANNER = """ 
 ██████╗ ██╗   ██╗███╗   ███╗██████╗ ██╗     ███████╗██████╗ ███████╗███████╗
 ██╔══██╗██║   ██║████╗ ████║██╔══██╗██║     ██╔════╝██╔══██╗██╔════╝██╔════╝
@@ -41,14 +45,20 @@ def run_cli():
     print("\033[95m" + BIGBANNER + "\033[0m")
 
     try:
-        agent = Orchestrator()
+        logger.info("Starting Agent Graph from user query")
+        graph = build_graph()  
     except Exception as e:
-        print(f"Failed to start Orchestrator: {e}")
+        print(f"Failed to start Agent Graph: {e}")
         sys.exit(1)
 
     while True:
         try:
             user_input = input("\nYou: ").strip()
+            initial_state = {
+        "user_input": user_input
+    }
+            # result = graph.ainvoke(input=initial_state)
+            logger.info("Agent finished execution")
         except (KeyboardInterrupt, EOFError):
             print("\nGoodbye!")
             break
@@ -63,18 +73,18 @@ def run_cli():
             break
 
         elif low == "/status":
-            print(agent.get_status())
+            print(graph.get_status())
 
         elif low == "/mcp":
-            print(agent.mcp_agent.get_status())
+            print(graph.get_status())
 
         elif low.startswith("/reconnect"):
             parts = user_input.split()
             server = parts[1] if len(parts) > 1 else None
-            print(agent.mcp_agent.reconnect(server))
+            print(graph.reconnect(server))
 
         elif low == "/clear":
-            agent.clear_memory()
+            graph.clear_memory()
             print("Memory cleared.")
 
         elif low == "/help":
@@ -82,7 +92,7 @@ def run_cli():
 
         else:
             print("\nSK: ", end="", flush=True)
-            response = agent.invoke(user_input)
+            response = run_agent(user_input)
             print(response)
 
 

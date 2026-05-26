@@ -16,8 +16,11 @@ import pathfinder
 import os
 import asyncio
 import logging
+from typing import List, Any
 
-from agents.base_agent import BaseSubAgent
+from universal_llm import UniversalLLM
+from middleware.summarizer import SummarizationMiddleware
+from config.settings import AGENT_LLM_CONFIG, MEMORY_DIR, BUFFER_WINDOW_SIZE, SUMMARY_THRESHOLD
 
 logger = logging.getLogger(__name__)
 
@@ -37,52 +40,49 @@ Always give a clear, concise final answer based on what you found.
 """
 
 
-class BrowserAgent(BaseSubAgent):
+class BrowserAgent:
+    """
+    BrowserAgent — powered by browser-use + Playwright.
+    Independent of BaseSubAgent and fully async.
+    """
     agent_name    = "browser"
     system_prompt = SYSTEM_PROMPT
 
-    def _load_tools(self):
-        return []   # browser-use manages its own tools internally
+    def __init__(self):
+        # Initialize LLM and Memory directly
+        cfg = AGENT_LLM_CONFIG.get(self.agent_name, AGENT_LLM_CONFIG["orchestrator"])
+        self.llm = UniversalLLM(**cfg).get_model()
 
-    # ── SYNC invoke — plain def, no async ────────────────────────
+        sum_cfg = AGENT_LLM_CONFIG["summarizer"]
+        self.summarizer_llm = UniversalLLM(**sum_cfg).get_model()
 
-    def invoke(self, user_input: str) -> str:          # <-- plain def, NOT async def
+        self.memory = SummarizationMiddleware(
+            agent_name=self.agent_name,
+            summarizer_llm=self.summarizer_llm,
+            buffer_window=BUFFER_WINDOW_SIZE,
+            summary_threshold=SUMMARY_THRESHOLD,
+            memory_dir=MEMORY_DIR,
+        )
+
+    async def invoke(self, user_input: str) -> str:
+        """
+        Main entry point (Async).
+        """
         context = self.memory.get_context()
         task    = user_input
         if context:
             task = f"{context}\n\nCurrent request: {user_input}"
 
-        response = self._run_browser_sync(task)        # sync call
+        response = await self._run_browser_async(task)
 
-        self.memory.add_turn("user", user_input)       # sync
-        self.memory.add_turn("assistant", response)    # sync
+        await self.memory.add_turn("user", user_input)
+        await self.memory.add_turn("assistant", response)
         return response
 
-    # ── Sync wrapper around async browser-use ────────────────────
-
-    def _run_browser_sync(self, task: str) -> str:
-        """
-        Runs browser-use (which is async) from sync code.
-        asyncio.run() creates a fresh event loop — safe because our
-        entire agent stack is sync so there is no outer running loop.
-        """
-        try:
-            return asyncio.run(self._run_browser_async(task))
-        except RuntimeError as e:
-            # Rare edge case: called from inside an already-running loop
-            if "cannot run" in str(e).lower() or "already running" in str(e).lower():
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                    future = pool.submit(asyncio.run, self._run_browser_async(task))
-                    return future.result(timeout=120)
-            return f"Browser runtime error: {e}"
-        except Exception as e:
-            logger.error(f"[BrowserAgent] error: {e}")
-            return f"Browser task failed: {e}"
-
-    # ── Async internals (only called via asyncio.run above) ───────
-
     async def _run_browser_async(self, task: str) -> str:
+        """
+        Async call to browser-use.
+        """
         try:
             from browser_use import Agent as BrowserUseAgent
             from browser_use import BrowserConfig

@@ -97,10 +97,12 @@ def run_whatsapp_bot(host: str = "0.0.0.0", port: int = 5000):
 
         logger.info(f"WA message from {from_}: {text}")
 
+        import asyncio
+
         # Special commands
         if text.lower() == "/clear":
             if from_ in user_agents:
-                user_agents[from_].clear_memory()
+                asyncio.run(user_agents[from_].clear_memory())
             send_whatsapp_message(from_, "Memory cleared!")
             return jsonify({"status": "ok"}), 200
 
@@ -112,7 +114,7 @@ def run_whatsapp_bot(host: str = "0.0.0.0", port: int = 5000):
         # Normal message
         agent = get_agent(from_)
         try:
-            response = agent.invoke(text)
+            response = asyncio.run(agent.invoke(text))
         except Exception as e:
             response = f"Sorry, something went wrong: {e}"
 
